@@ -1,3 +1,5 @@
+import { FIELD_LIMITS, clampText, normalizeHttpsUrl } from "./safety";
+
 export const APP_VERSION =
   typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0";
 
@@ -33,6 +35,7 @@ export function isReleaseNewer(currentVersion, releaseTag) {
 }
 
 export async function fetchLatestRelease(repository = REPOSITORY) {
+  const fallbackReleaseUrl = `https://github.com/${repository}/releases`;
   const response = await fetch(
     `https://api.github.com/repos/${repository}/releases/latest`,
     {
@@ -53,16 +56,18 @@ export async function fetchLatestRelease(repository = REPOSITORY) {
   const release = await response.json();
 
   return {
-    tagName: release.tag_name,
-    name: release.name || release.tag_name,
-    body: release.body || "",
-    htmlUrl: release.html_url,
+    tagName: clampText(release.tag_name, FIELD_LIMITS.releaseName),
+    name:
+      clampText(release.name, FIELD_LIMITS.releaseName) ||
+      clampText(release.tag_name, FIELD_LIMITS.releaseName),
+    body: clampText(release.body, FIELD_LIMITS.releaseBody),
+    htmlUrl: normalizeHttpsUrl(release.html_url, fallbackReleaseUrl),
     publishedAt: release.published_at,
     assets: Array.isArray(release.assets)
       ? release.assets.map((asset) => ({
-          name: asset.name,
-          size: asset.size,
-          downloadUrl: asset.browser_download_url,
+          name: clampText(asset.name, FIELD_LIMITS.releaseName),
+          size: Number.isFinite(asset.size) ? asset.size : 0,
+          downloadUrl: normalizeHttpsUrl(asset.browser_download_url, fallbackReleaseUrl),
         }))
       : [],
   };

@@ -439,6 +439,7 @@ textarea:focus-visible {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.625rem;
+  overflow-wrap: anywhere;
 }
 
 .feed-top strong {
@@ -462,6 +463,7 @@ textarea:focus-visible {
   color: #4a4038;
   font-size: 0.875rem;
   font-style: italic;
+  overflow-wrap: anywhere;
 }
 
 .panel {
@@ -532,6 +534,7 @@ textarea {
 .handoff p {
   margin: 0;
   line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
 .handoff {

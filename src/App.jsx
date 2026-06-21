@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   APP_VERSION,
   REPOSITORY,
   fetchLatestRelease,
   isReleaseNewer,
 } from "./lib/releases";
+import {
+  FIELD_LIMITS,
+  clampText,
+  normalizeContact,
+  normalizeStoredContacts,
+  normalizeStoredUsage,
+} from "./lib/safety";
 
 const CONTACTS_KEY = "threshold.contacts.v1";
 const USAGE_KEY = "threshold.usage.v1";
@@ -79,8 +86,12 @@ function createSeedContacts() {
 
 export default function App() {
   const [tab, setTab] = useState("door");
-  const [contacts, setContacts] = useStoredState(CONTACTS_KEY, createSeedContacts);
-  const [usage, setUsage] = useStoredState(USAGE_KEY, []);
+  const [contacts, setContacts] = useStoredState(
+    CONTACTS_KEY,
+    createSeedContacts,
+    (value) => normalizeStoredContacts(value, createSeedContacts()),
+  );
+  const [usage, setUsage] = useStoredState(USAGE_KEY, [], normalizeStoredUsage);
   const reduceMotion = useReducedMotion();
   const install = useInstallPrompt();
 
@@ -94,14 +105,21 @@ export default function App() {
   const appOpens = useMemo(() => getRecentUsage(usage, 7), [usage]);
 
   function logContact(contact) {
-    setContacts((current) => [
+    const safeContact = normalizeContact(
       {
         id: createId(),
         createdAt: new Date().toISOString(),
-        who: contact.who.trim(),
+        who: contact.who,
         kind: contact.kind,
-        note: contact.note.trim(),
+        note: contact.note,
       },
+      0,
+    );
+
+    if (!safeContact) return;
+
+    setContacts((current) => [
+      safeContact,
       ...current,
     ]);
     setTab("door");
@@ -415,7 +433,12 @@ function Rehearse({ onLogged }) {
 
   async function copyDraft() {
     try {
-      await navigator.clipboard?.writeText(draft);
+      if (!navigator.clipboard?.writeText) {
+        setCopyStatus("Copy unavailable");
+        return;
+      }
+
+      await navigator.clipboard.writeText(draft);
       setCopyStatus("Copied");
     } catch {
       setCopyStatus("Copy unavailable");
@@ -440,6 +463,7 @@ function Rehearse({ onLogged }) {
           id="who"
           value={who}
           onChange={(event) => setWho(event.target.value)}
+          maxLength={FIELD_LIMITS.who}
           placeholder="A sister, an old friend, the group you keep meaning to join"
         />
 
@@ -450,6 +474,7 @@ function Rehearse({ onLogged }) {
           id="goal"
           value={goal}
           onChange={(event) => setGoal(event.target.value)}
+          maxLength={FIELD_LIMITS.goal}
           placeholder="Reconnect, say sorry, ask if I can come along"
         />
 
@@ -460,6 +485,7 @@ function Rehearse({ onLogged }) {
           id="draft"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
+          maxLength={FIELD_LIMITS.draft}
           placeholder="Even one rough line is enough to begin."
         />
 
@@ -572,6 +598,7 @@ function Debrief({ onLog }) {
           id="debrief-who"
           value={who}
           onChange={(event) => setWho(event.target.value)}
+          maxLength={FIELD_LIMITS.who}
           placeholder="Maya, the knitting circle, the person at the desk"
         />
 
@@ -599,6 +626,7 @@ function Debrief({ onLog }) {
           id="debrief-how"
           value={how}
           onChange={(event) => setHow(event.target.value)}
+          maxLength={FIELD_LIMITS.note}
           placeholder="Lighter than I expected. Still nervous. Glad I went."
         />
 
@@ -891,24 +919,37 @@ function useInstallPrompt() {
   };
 }
 
-function useStoredState(key, initialValue) {
+function useStoredState(key, initialValue, normalize = (current) => current) {
   const [value, setValue] = useState(() => {
-    if (typeof window === "undefined") return resolveInitial(initialValue);
+    if (typeof window === "undefined") return normalize(resolveInitial(initialValue));
 
     try {
       const saved = window.localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : resolveInitial(initialValue);
+      return normalize(saved ? JSON.parse(saved) : resolveInitial(initialValue));
     } catch {
-      return resolveInitial(initialValue);
+      return normalize(resolveInitial(initialValue));
     }
   });
 
+  const setNormalizedValue = useCallback(
+    (nextValue) => {
+      setValue((current) =>
+        normalize(typeof nextValue === "function" ? nextValue(current) : nextValue),
+      );
+    },
+    [normalize],
+  );
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem(key, JSON.stringify(value));
+    try {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // Storage may be full or disabled; keep the in-memory app usable.
+    }
   }, [key, value]);
 
-  return [value, setValue];
+  return [value, setNormalizedValue];
 }
 
 function useReducedMotion() {
@@ -931,10 +972,11 @@ function useReducedMotion() {
 }
 
 function buildSuggestedMessage({ who, goal, draft }) {
-  if (draft.trim()) return draft.trim();
+  const safeDraft = clampText(draft, FIELD_LIMITS.draft);
+  if (safeDraft) return safeDraft;
 
-  const name = firstName(who);
-  const normalizedGoal = normalizeGoal(goal);
+  const name = firstName(clampText(who, FIELD_LIMITS.who));
+  const normalizedGoal = normalizeGoal(clampText(goal, FIELD_LIMITS.goal));
   return `Hey ${name}, I was thinking about you and wanted to say hi. No pressure, but I would like to ${normalizedGoal}.`;
 }
 
@@ -954,7 +996,7 @@ function firstName(value) {
 }
 
 function recordTodayUsage(usage) {
-  const safeUsage = Array.isArray(usage) ? usage : [];
+  const safeUsage = normalizeStoredUsage(usage);
   const today = toDateKey(new Date());
   const existing = safeUsage.find((item) => item.date === today);
 
@@ -968,7 +1010,7 @@ function recordTodayUsage(usage) {
 }
 
 function getRecentUsage(usage, days) {
-  const safeUsage = Array.isArray(usage) ? usage : [];
+  const safeUsage = normalizeStoredUsage(usage);
   const byDate = new Map(safeUsage.map((item) => [item.date, item.count]));
 
   return Array.from({ length: days }, (_, index) => {
@@ -990,6 +1032,8 @@ function daysAgo(count) {
 
 function formatRelativeDate(value) {
   const then = new Date(value);
+  if (!Number.isFinite(then.getTime())) return "Unknown date";
+
   const now = new Date();
   const diffMs = now.getTime() - then.getTime();
   const diffDays = Math.floor(diffMs / 86_400_000);
@@ -1065,6 +1109,6 @@ function safeSessionSet(key, value) {
 }
 
 function createId() {
-  if (crypto.randomUUID) return crypto.randomUUID();
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }

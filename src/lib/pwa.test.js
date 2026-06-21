@@ -30,6 +30,14 @@ describe("PWA install assets", () => {
     expect(serviceWorker).toContain("networkFirst");
     expect(serviceWorker).toContain("staleWhileRevalidate");
   });
+
+  it("ships a content security policy for the hosted app", () => {
+    const indexHtml = fs.readFileSync(path.resolve(publicDir, "../index.html"), "utf8");
+
+    expect(indexHtml).toContain("Content-Security-Policy");
+    expect(indexHtml).toContain("script-src 'self'");
+    expect(indexHtml).toContain("object-src 'none'");
+  });
 });
 
 function hasIcon(manifest, size) {
