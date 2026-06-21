@@ -82,6 +82,7 @@ export default function App() {
   const [contacts, setContacts] = useStoredState(CONTACTS_KEY, createSeedContacts);
   const [usage, setUsage] = useStoredState(USAGE_KEY, []);
   const reduceMotion = useReducedMotion();
+  const install = useInstallPrompt();
 
   useEffect(() => {
     const sessionKey = `threshold.opened.${toDateKey(new Date())}`;
@@ -108,7 +109,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Header tab={tab} setTab={setTab} />
+      <Header tab={tab} setTab={setTab} install={install} />
       <main className="main" id="main">
         {tab === "door" && (
           <Door
@@ -116,43 +117,57 @@ export default function App() {
             appOpens={appOpens}
             reduceMotion={reduceMotion}
             go={setTab}
+            install={install}
           />
         )}
         {tab === "rehearse" && <Rehearse onLogged={() => setTab("debrief")} />}
         {tab === "step" && <StepOut />}
         {tab === "debrief" && <Debrief onLog={logContact} />}
-        {tab === "updates" && <Updates />}
+        {tab === "updates" && <Updates install={install} />}
       </main>
       <FootNote />
     </div>
   );
 }
 
-function Header({ tab, setTab }) {
+function Header({ tab, setTab, install }) {
   return (
     <header className="header">
       <a className="brand-row" href="#main" aria-label="Threshold home">
         <DoorMark size={26} open={0.55} />
         <span className="brand">Threshold</span>
       </a>
-      <nav className="nav" aria-label="Sections">
-        {TABS.map(([id, label]) => (
+      <div className="header-actions">
+        <nav className="nav" aria-label="Sections">
+          {TABS.map(([id, label]) => (
+            <button
+              type="button"
+              key={id}
+              onClick={() => setTab(id)}
+              className={tab === id ? "nav-button nav-button-active" : "nav-button"}
+              aria-current={tab === id ? "page" : undefined}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        {!install.isInstalled && (
           <button
             type="button"
-            key={id}
-            onClick={() => setTab(id)}
-            className={tab === id ? "nav-button nav-button-active" : "nav-button"}
-            aria-current={tab === id ? "page" : undefined}
+            className="install-button"
+            onClick={install.requestInstall}
+            disabled={install.status === "prompting"}
           >
-            {label}
+            <InstallIcon size={16} />
+            <span>{install.status === "prompting" ? "Opening" : "Install"}</span>
           </button>
-        ))}
-      </nav>
+        )}
+      </div>
     </header>
   );
 }
 
-function Door({ contacts, appOpens, reduceMotion, go }) {
+function Door({ contacts, appOpens, reduceMotion, go, install }) {
   const count = contacts.length;
   const openness = Math.min(1, 0.18 + count * 0.16);
   const trendDown =
@@ -186,6 +201,8 @@ function Door({ contacts, appOpens, reduceMotion, go }) {
           </div>
         </div>
       </section>
+
+      {!install.isInstalled && <InstallPanel install={install} />}
 
       <section className="metrics-grid" aria-label="Progress">
         <Metric
@@ -226,6 +243,37 @@ function Door({ contacts, appOpens, reduceMotion, go }) {
         </ol>
       </section>
     </div>
+  );
+}
+
+function InstallPanel({ install }) {
+  return (
+    <section className="install-panel" aria-labelledby="install-title">
+      <div className="install-panel-icon" aria-hidden="true">
+        <InstallIcon size={26} />
+      </div>
+      <div className="install-panel-copy">
+        <p className="eyebrow">Install</p>
+        <h2 id="install-title">Keep Threshold one tap away.</h2>
+        <p>
+          Add the app to this device for a focused window, quick launch, and
+          the same local notes you already keep here.
+        </p>
+        <p className="install-help">{installStatusText(install)}</p>
+      </div>
+      <button
+        type="button"
+        className="button button-sage install-panel-action"
+        onClick={install.requestInstall}
+        disabled={install.status === "prompting"}
+      >
+        {install.status === "prompting"
+          ? "Opening"
+          : install.canPrompt
+            ? "Install Threshold"
+            : "Show install option"}
+      </button>
+    </section>
   );
 }
 
@@ -570,7 +618,7 @@ function Debrief({ onLog }) {
   );
 }
 
-function Updates() {
+function Updates({ install }) {
   const [status, setStatus] = useState("idle");
   const [release, setRelease] = useState(null);
   const [error, setError] = useState("");
@@ -636,6 +684,8 @@ function Updates() {
       <p className="lede">
         Running version {APP_VERSION} from {REPOSITORY}.
       </p>
+
+      {!install.isInstalled && <InstallPanel install={install} />}
 
       <article className="release-card" aria-live="polite">
         <div className="release-card-head">
@@ -742,6 +792,103 @@ function DoorMark({ size = 20, open = 0.5 }) {
       <circle cx={6 - swing + 1.4} cy="12" r="0.9" fill="var(--ember)" />
     </svg>
   );
+}
+
+function InstallIcon({ size = 20 }) {
+  return (
+    <svg
+      className="install-icon"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 3v10.2m0 0 4-4m-4 4-4-4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M5 14.5V19a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function useInstallPrompt() {
+  const [promptEvent, setPromptEvent] = useState(null);
+  const [status, setStatus] = useState("waiting");
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [platform, setPlatform] = useState("desktop");
+
+  useEffect(() => {
+    setPlatform(detectInstallPlatform());
+    setIsInstalled(isStandaloneApp());
+    setStatus(isStandaloneApp() ? "installed" : "waiting");
+
+    function onBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setPromptEvent(event);
+      setStatus("ready");
+    }
+
+    function onAppInstalled() {
+      setPromptEvent(null);
+      setIsInstalled(true);
+      setStatus("installed");
+    }
+
+    window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+    window.addEventListener("appinstalled", onAppInstalled);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", onAppInstalled);
+    };
+  }, []);
+
+  async function requestInstall() {
+    if (isInstalled) return;
+
+    if (!promptEvent) {
+      setStatus("manual");
+      return;
+    }
+
+    setStatus("prompting");
+
+    try {
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      setPromptEvent(null);
+
+      if (choice?.outcome === "accepted") {
+        setIsInstalled(true);
+        setStatus("installed");
+        return;
+      }
+
+      setStatus("dismissed");
+    } catch {
+      setPromptEvent(null);
+      setStatus("manual");
+    }
+  }
+
+  return {
+    canPrompt: Boolean(promptEvent),
+    isInstalled,
+    platform,
+    requestInstall,
+    status,
+  };
 }
 
 function useStoredState(key, initialValue) {
@@ -862,6 +1009,39 @@ function releaseStatusText(status) {
   if (status === "error") return "Release check failed";
   if (status === "none") return "No releases yet";
   return "Waiting to check";
+}
+
+function installStatusText({ canPrompt, platform, status }) {
+  if (status === "ready" || canPrompt) return "Ready to install on this device.";
+  if (status === "prompting") return "Opening your browser's install flow.";
+  if (status === "dismissed") return "No pressure. The install option will stay here.";
+
+  if (platform === "ios") {
+    return "On iPhone or iPad, use Share, then Add to Home Screen.";
+  }
+
+  if (platform === "android") {
+    return "On Android, use the browser install or Add to Home Screen option.";
+  }
+
+  return "On desktop, use the browser install option from this page.";
+}
+
+function detectInstallPlatform() {
+  const userAgent = navigator.userAgent || "";
+  const isiPadOS =
+    navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints) > 1;
+
+  if (/iphone|ipad|ipod/i.test(userAgent) || isiPadOS) return "ios";
+  if (/android/i.test(userAgent)) return "android";
+  return "desktop";
+}
+
+function isStandaloneApp() {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
 }
 
 function resolveInitial(initialValue) {

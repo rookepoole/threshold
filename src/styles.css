@@ -96,6 +96,14 @@ textarea:focus-visible {
   letter-spacing: 0;
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .nav {
   display: flex;
   flex-wrap: wrap;
@@ -105,7 +113,8 @@ textarea:focus-visible {
 .nav-button,
 .button,
 .chip,
-.text-button {
+.text-button,
+.install-button {
   min-height: 2.75rem;
   border-radius: 8px;
   cursor: pointer;
@@ -123,6 +132,19 @@ textarea:focus-visible {
 .nav-button-active {
   background: var(--ink);
   color: var(--paper);
+}
+
+.install-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border: 1px solid rgba(91, 123, 110, 0.38);
+  background: rgba(91, 123, 110, 0.13);
+  color: var(--moss);
+  font-size: 0.875rem;
+  font-weight: 800;
+  padding: 0.5rem 0.8125rem;
 }
 
 .main {
@@ -226,6 +248,59 @@ textarea:focus-visible {
   background: var(--sage);
   color: white;
   box-shadow: 0 10px 24px rgba(91, 123, 110, 0.24);
+}
+
+.install-panel {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(62, 101, 114, 0.2);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(62, 101, 114, 0.1), transparent 42%),
+    rgba(255, 255, 255, 0.68);
+  box-shadow: var(--shadow);
+  padding: 1.125rem;
+}
+
+.install-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.install-panel-copy h2 {
+  margin: 0 0 0.375rem;
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.375rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.install-panel-copy .eyebrow {
+  margin-bottom: 0.375rem;
+}
+
+.install-panel-copy p {
+  margin: 0;
+  color: #4a4038;
+  font-size: 0.90625rem;
+  line-height: 1.55;
+}
+
+.install-help {
+  margin-top: 0.5rem !important;
+  color: var(--blue) !important;
+  font-weight: 700;
+}
+
+.install-panel-action {
+  white-space: nowrap;
 }
 
 .metrics-grid {
@@ -673,13 +748,18 @@ textarea {
     padding: 1rem;
   }
 
+  .header-actions {
+    width: 100%;
+  }
+
   .main {
     padding: 2rem 1rem;
   }
 
   .hero,
   .metrics-grid,
-  .ramp-grid {
+  .ramp-grid,
+  .install-panel {
     grid-template-columns: 1fr;
   }
 
@@ -702,6 +782,11 @@ textarea {
 
   .nav-button {
     flex: 1 1 auto;
+  }
+
+  .install-button,
+  .install-panel-action {
+    width: 100%;
   }
 
   .release-card-head .button {

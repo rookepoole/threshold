@@ -2,9 +2,30 @@
   "name": "Threshold",
   "short_name": "Threshold",
   "description": "A local-first app for taking one small real-world social step.",
+  "id": ".",
   "start_url": ".",
+  "scope": ".",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "background_color": "#f2e8d8",
   "theme_color": "#5b7b6e",
-  "icons": []
+  "categories": ["health", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

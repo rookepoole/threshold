@@ -11,9 +11,24 @@ This repository now contains the production scaffold for the original
 
 - React 19 and Vite
 - local browser storage for contact logs and usage trend data
+- installable PWA support for desktop and mobile browsers
 - no browser-side AI provider secrets
 - GitHub Releases update checks inside the app
 - GitHub Actions for CI, Pages deployment, and tagged releases
+
+## Install The App
+
+Open the live app:
+
+```text
+https://rookepoole.github.io/threshold/
+```
+
+On Chrome, Edge, and most Android browsers, use Threshold's Install button.
+On iPhone or iPad, open the Share sheet and choose Add to Home Screen.
+
+The installed app keeps the same local browser data model: notes stay on the
+device where they were created.
 
 ## Development
 
@@ -44,17 +59,13 @@ exists, the Updates tab shows it and lets the user refresh deployed app assets.
 Publish a release by tagging a version:
 
 ```bash
-git tag v0.1.1
-git push origin v0.1.1
+git tag v0.1.2
+git push origin v0.1.2
 ```
 
 The release workflow builds the app, creates a zipped `dist` artifact, and
 publishes a GitHub Release. The Pages workflow deploys `main` to GitHub Pages
 with `BASE_PATH=/threshold/`.
-
-GitHub Pages deployment is manual until the repository is configured in
-Settings -> Pages with GitHub Actions as the source. After that is enabled, run
-the Deploy Pages workflow from the Actions tab.
 
 ## Privacy Shape
 
