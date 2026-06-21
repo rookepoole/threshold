@@ -59,13 +59,17 @@ exists, the Updates tab shows it and lets the user refresh deployed app assets.
 Publish a release by tagging a version:
 
 ```bash
-git tag v0.1.2
-git push origin v0.1.2
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 The release workflow builds the app, creates a zipped `dist` artifact, and
 publishes a GitHub Release. The Pages workflow deploys `main` to GitHub Pages
 with `BASE_PATH=/threshold/`.
+
+For user-visible fixes, bump `package.json`, bump `public/sw.js`'s cache
+version, and publish a matching release tag so installed apps can detect and
+pull the new build.
 
 ## Contributing
 
