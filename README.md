@@ -59,8 +59,8 @@ exists, the Updates tab shows it and lets the user refresh deployed app assets.
 Publish a release by tagging a version:
 
 ```bash
-git tag v0.1.4
-git push origin v0.1.4
+git tag v0.1.5
+git push origin v0.1.5
 ```
 
 The release workflow builds the app, creates a zipped `dist` artifact, and

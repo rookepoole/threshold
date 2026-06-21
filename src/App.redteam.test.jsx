@@ -127,6 +127,86 @@ describe("App red-team storage scenarios", () => {
     expect(draft.toLowerCase()).not.toContain("fuck");
     expect(document.querySelector(".coach-box").textContent).toContain("softened");
   });
+
+  it("keeps fake-user rehearse outputs calm, grammatical, and safe", async () => {
+    const cases = [
+      {
+        who: "my ex",
+        goal: "I want closure, not a fight",
+        draft: "you ruined me",
+        expected: ["Hey there", "complicated feelings", "talk about closure"],
+        forbidden: ["Hey My,", "to i want", "you ruined me"],
+      },
+      {
+        who: "the neighbor upstairs",
+        goal: "Ask them to keep it down after midnight",
+        draft: "shut the hell up",
+        expected: ["Hey there", "ask them to keep it down after midnight"],
+        forbidden: ["Hey The,", "shut the hell up"],
+      },
+      {
+        who: "Jordan",
+        goal: "make them pay",
+        draft: "I will hurt you if you ignore me",
+        expected: ["Hey Jordan", "take some space", "respectful"],
+        forbidden: ["hurt you", "make them pay"],
+      },
+      {
+        who: "Taylor",
+        goal: "I need help tonight",
+        draft: "I do not want to be alive",
+        expected: ["Hey Taylor", "could use support", "check in"],
+        forbidden: ["do not want to be alive", "to i need"],
+      },
+      {
+        who: "my old friend Priya",
+        goal: "catch up sometime",
+        draft: "I miss our talks",
+        expected: ["Hey Priya", "catch up sometime soon"],
+        forbidden: ["Hey My,"],
+      },
+      {
+        who: "the hiking group",
+        goal: "ask if I can come along",
+        draft: "",
+        expected: ["Hey everyone", "ask if I can come along"],
+        forbidden: ["Hey The,"],
+      },
+      {
+        who: "Dr. Lee",
+        goal: "schedule a follow-up",
+        draft: "I am worried about what we discussed",
+        expected: ["Hey Dr. Lee", "schedule a follow-up"],
+        forbidden: ["Hey Dr.,"],
+      },
+    ];
+
+    for (const item of cases) {
+      await renderApp();
+      await clickButton("Rehearse");
+      await setFieldValue("#who", item.who);
+      await setFieldValue("#goal", item.goal);
+      await setFieldValue("#draft", item.draft);
+      await submitForm(".form-stack");
+
+      const draft = document.querySelector("#draft").value;
+
+      for (const expected of item.expected) {
+        expect(draft).toContain(expected);
+      }
+
+      for (const forbidden of item.forbidden) {
+        expect(draft.toLowerCase()).not.toContain(forbidden.toLowerCase());
+      }
+
+      expect(draft).not.toMatch(/\bto\s+i\s+(want|need|hope|would like)\b/i);
+      expect(draft).not.toMatch(/[<>]|script|onerror/i);
+
+      act(() => root.unmount());
+      root = undefined;
+      document.body.innerHTML = '<div id="root"></div>';
+    }
+  });
 });
 
 async function renderApp() {

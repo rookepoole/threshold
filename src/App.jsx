@@ -26,6 +26,19 @@ const TABS = [
 
 const MOMENT_KINDS = ["Reached out", "Showed up", "Said yes", "Stayed a while"];
 
+const SELF_SUPPORT_DRAFT_PATTERNS = [
+  /\b(?:do\s+not|don't)\s+want\s+to\s+be\s+alive\b/i,
+  /\bkill\s+myself\b/i,
+  /\bsuicid(?:e|al)\b/i,
+  /\bend\s+it\s+all\b/i,
+];
+
+const UNSAFE_ESCALATION_PATTERNS = [
+  /\b(?:i\s+will|i'll|i\s+am\s+going\s+to|i'm\s+going\s+to)\s+(?:hurt|kill|destroy)\s+you\b/i,
+  /\bkill\s+you\b/i,
+  /\bmake\s+(?:them|you|him|her)\s+pay\b/i,
+];
+
 const HEATED_DRAFT_PATTERNS = [
   /\bf+u+c+k+\b/i,
   /\bshit+\b/i,
@@ -33,7 +46,20 @@ const HEATED_DRAFT_PATTERNS = [
   /\bbitch\b/i,
   /\bi\s+hate\s+you\b/i,
   /\bgo\s+to\s+hell\b/i,
+  /\bshut\s+(?:the\s+)?(?:hell\s+)?up\b/i,
+  /\byou\s+(?:ruined|owe|betrayed|abandoned)\b/i,
+  /\byou\s+are\s+(?:disgusting|awful|terrible|toxic|selfish|cruel)\b/i,
 ];
+
+const AMBIGUOUS_RECIPIENT_WORDS = new Set([
+  "old",
+  "former",
+  "new",
+  "close",
+  "best",
+  "upstairs",
+  "downstairs",
+]);
 
 const STEP_RAMPS = [
   {
@@ -432,15 +458,11 @@ function Rehearse({ onLogged }) {
       return;
     }
 
-    const roughDraft = isHeatedDraft(draft);
+    const draftTone = getDraftTone({ draft, goal });
     const nextDraft = buildSuggestedMessage({ who, goal, draft });
     setError("");
     setDraft(nextDraft);
-    setCoach(
-      roughDraft
-        ? "I softened the heat without pretending the situation is easy. Read it once, change anything that does not feel true, then send from your own messages."
-        : "This keeps the ask clear and low-pressure. Right before you send, breathe once and let it be imperfect.",
-    );
+    setCoach(getCoachText(draftTone));
   }
 
   async function copyDraft() {
@@ -985,18 +1007,27 @@ function useReducedMotion() {
 
 function buildSuggestedMessage({ who, goal, draft }) {
   const name = firstName(cleanMessageText(who, FIELD_LIMITS.who));
-  const normalizedGoal = normalizeGoal(cleanMessageText(goal, FIELD_LIMITS.goal));
+  const goalPhrase = normalizeGoal(cleanMessageText(goal, FIELD_LIMITS.goal));
   const safeDraft = cleanMessageText(draft, FIELD_LIMITS.draft);
+  const draftTone = getDraftTone({ draft: safeDraft, goal });
 
-  if (isHeatedDraft(safeDraft)) {
-    return `Hey ${name}, I have a lot of complicated feelings about what happened. I do not want to unload all of that in one message, but I would like to ${normalizedGoal} if you are open to it.`;
+  if (draftTone === "support") {
+    return `Hey ${name}, I am not okay tonight and I could use support. Could you check in with me when you can?`;
+  }
+
+  if (draftTone === "unsafe") {
+    return `Hey ${name}, I am too escalated to talk well right now. I am going to take some space and come back when I can be respectful.`;
+  }
+
+  if (draftTone === "heated") {
+    return `Hey ${name}, I have a lot of complicated feelings about what happened. I do not want to unload all of that in one message, but I would like ${goalPhrase} if you are open to it.`;
   }
 
   if (safeDraft) {
-    return `Hey ${name}, ${toSentence(safeDraft)} No pressure, but I would like to ${normalizedGoal}.`;
+    return `Hey ${name}, ${toSentence(safeDraft)} No pressure, but I would like ${goalPhrase}.`;
   }
 
-  return `Hey ${name}, I was thinking about you and wanted to say hi. No pressure, but I would like to ${normalizedGoal}.`;
+  return `Hey ${name}, I was thinking about you and wanted to say hi. No pressure, but I would like ${goalPhrase}.`;
 }
 
 function normalizeGoal(goal) {
@@ -1006,29 +1037,85 @@ function normalizeGoal(goal) {
     .replace(/^(just\s+)?to\s+/i, "")
     .replace(/\s+/g, " ");
 
+  if (!clean) return "to catch up sometime soon";
+
+  const explicitSharedWant = clean.match(
+    /\b(?:i\s+)?(?:want|wanted|would like|would love|hope|hoped|need)\s+(?:us|you|them|him|her)\s+to\s+(.+)$/i,
+  );
+
+  if (explicitSharedWant?.[1]) {
+    return toGoalInfinitive(explicitSharedWant[1]);
+  }
+
   const explicitWant = clean.match(
     /\b(?:i\s+)?(?:want|wanted|would like|would love|hope|hoped|need)\s+to\s+(.+)$/i,
   );
 
   if (explicitWant?.[1]) {
-    return explicitWant[1].trim().toLowerCase();
+    return toGoalInfinitive(explicitWant[1]);
   }
 
-  if (/\breconnect\b/i.test(clean)) return "reconnect";
-  if (/\bcatch up\b/i.test(clean)) return "catch up sometime soon";
+  const directObjectWant = clean.match(
+    /\b(?:i\s+)?(?:want|wanted|would like|would love|hope|hoped|need)\s+(.+)$/i,
+  );
 
-  return clean.toLowerCase() || "catch up sometime soon";
+  if (directObjectWant?.[1]) {
+    return directObjectToGoalPhrase(directObjectWant[1]);
+  }
+
+  if (/\breconnect\b/i.test(clean)) return "to reconnect";
+  if (/\bcatch up\b/i.test(clean)) return "to catch up sometime soon";
+  if (/^(?:an?\s+)?apolog/i.test(clean)) return "to talk about what happened";
+  if (/\bclosure\b/i.test(clean)) return "to talk about closure";
+  if (/\banswers?\b/i.test(clean)) {
+    return "to talk through the questions I still have";
+  }
+
+  return toGoalInfinitive(clean);
 }
 
 function firstName(value) {
   const withoutParentheses = value.replace(/\(.+\)/, "").trim();
+  const formalTitle = withoutParentheses.match(
+    /^(dr|mr|mrs|ms|mx)\.?\s+([a-z][a-z'-]*)\b/i,
+  );
+
+  if (formalTitle) {
+    return `${capitalize(formalTitle[1])}. ${capitalize(formalTitle[2])}`;
+  }
+
   const relation = withoutParentheses.match(
     /^(?:my\s+)?(mom|mother|mama|mum|dad|father|papa|sister|brother|aunt|uncle|grandma|grandmother|grandpa|grandfather)\b/i,
   );
 
   if (relation?.[1]) return capitalize(relation[1]);
 
-  const firstWord = withoutParentheses.split(/\s+/)[0];
+  if (
+    /^(?:the|my|our|a|an)\b/i.test(withoutParentheses) &&
+    /\b(group|team|club|class|committee|choir|circle)\b/i.test(withoutParentheses)
+  ) {
+    return "everyone";
+  }
+
+  const namedAfterRelation = withoutParentheses.match(
+    /\b(?:friend|coworker|colleague|neighbor|roommate|boss|ex|partner|therapist|doctor|teacher|coach|mentor)\s+([a-z][a-z'-]*)\b/i,
+  );
+
+  if (
+    namedAfterRelation?.[1] &&
+    !AMBIGUOUS_RECIPIENT_WORDS.has(namedAfterRelation[1].toLowerCase())
+  ) {
+    return capitalize(namedAfterRelation[1]);
+  }
+
+  if (/^(?:my|the|a|an|our)\b/i.test(withoutParentheses)) return "there";
+
+  const firstWord = withoutParentheses
+    .split(/\s+/)[0]
+    ?.replace(/^[^a-z]+|[^a-z'.-]+$/gi, "")
+    .replace(/[,.]+$/, "");
+
+  if (!firstWord || !/[a-z]/i.test(firstWord)) return "there";
   return firstWord ? capitalize(firstWord) : "there";
 }
 
@@ -1047,6 +1134,72 @@ function capitalize(value) {
 function isHeatedDraft(value) {
   const clean = cleanMessageText(value, FIELD_LIMITS.draft).toLowerCase();
   return HEATED_DRAFT_PATTERNS.some((pattern) => pattern.test(clean));
+}
+
+function getDraftTone({ draft, goal }) {
+  const cleanDraft = cleanMessageText(draft, FIELD_LIMITS.draft);
+  const cleanGoal = cleanMessageText(goal, FIELD_LIMITS.goal);
+
+  if (matchesAny(cleanDraft, SELF_SUPPORT_DRAFT_PATTERNS)) return "support";
+  if (
+    matchesAny(cleanDraft, UNSAFE_ESCALATION_PATTERNS) ||
+    matchesAny(cleanGoal, UNSAFE_ESCALATION_PATTERNS)
+  ) {
+    return "unsafe";
+  }
+  if (isHeatedDraft(cleanDraft)) return "heated";
+  return "steady";
+}
+
+function getCoachText(tone) {
+  if (tone === "support") {
+    return "I turned this into a direct ask for support. If you might hurt yourself or someone else, step away from the message and contact local emergency help now.";
+  }
+
+  if (tone === "unsafe") {
+    return "I removed threats and retaliation from the message. Take space before sending anything, and choose a safer next step if anyone could get hurt.";
+  }
+
+  if (tone === "heated") {
+    return "I softened the heat without pretending the situation is easy. Read it once, change anything that does not feel true, then send from your own messages.";
+  }
+
+  return "This keeps the ask clear and low-pressure. Right before you send, breathe once and let it be imperfect.";
+}
+
+function directObjectToGoalPhrase(value) {
+  const object = normalizeStandalonePhrase(value);
+
+  if (!object) return "to catch up sometime soon";
+  if (/^(?:an?\s+)?apolog/i.test(object)) return "to talk about what happened";
+  if (/\bclosure\b/i.test(object)) return "to talk about closure";
+  if (/\banswers?\b/i.test(object)) {
+    return "to talk through the questions I still have";
+  }
+  if (/\b(?:help|support)\b/i.test(object)) return "some support";
+  if (/\bclean(?:er)?\s+kitchen\b/i.test(object)) {
+    return "to talk about keeping the kitchen cleaner";
+  }
+
+  return `to talk about ${object}`;
+}
+
+function toGoalInfinitive(value) {
+  const phrase = normalizeStandalonePhrase(value).replace(/^(?:to\s+)+/i, "");
+  return phrase ? `to ${phrase}` : "to catch up sometime soon";
+}
+
+function normalizeStandalonePhrase(value) {
+  return value
+    .trim()
+    .replace(/[.?!]+$/, "")
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\bi\b/g, "I");
+}
+
+function matchesAny(value, patterns) {
+  return patterns.some((pattern) => pattern.test(value));
 }
 
 function recordTodayUsage(usage) {
