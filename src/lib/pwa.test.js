@@ -26,7 +26,7 @@ describe("PWA install assets", () => {
   it("keeps the service worker able to handle app fetches", () => {
     const serviceWorker = fs.readFileSync(path.join(publicDir, "sw.js"), "utf8");
 
-    expect(serviceWorker).toContain('const VERSION = "threshold-sw-v5"');
+    expect(serviceWorker).toContain('const VERSION = "threshold-sw-v6"');
     expect(serviceWorker).toContain('addEventListener("fetch"');
     expect(serviceWorker).toContain("networkFirst");
     expect(serviceWorker).toContain("staleWhileRevalidate");

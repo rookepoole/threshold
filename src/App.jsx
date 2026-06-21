@@ -1039,6 +1039,9 @@ function normalizeGoal(goal) {
 
   if (!clean) return "to catch up sometime soon";
 
+  const knownGoal = knownGoalPhrase(clean);
+  if (knownGoal) return knownGoal;
+
   const explicitSharedWant = clean.match(
     /\b(?:i\s+)?(?:want|wanted|would like|would love|hope|hoped|need)\s+(?:us|you|them|him|her)\s+to\s+(.+)$/i,
   );
@@ -1063,8 +1066,6 @@ function normalizeGoal(goal) {
     return directObjectToGoalPhrase(directObjectWant[1]);
   }
 
-  if (/\breconnect\b/i.test(clean)) return "to reconnect";
-  if (/\bcatch up\b/i.test(clean)) return "to catch up sometime soon";
   if (/^(?:an?\s+)?apolog/i.test(clean)) return "to talk about what happened";
   if (/\bclosure\b/i.test(clean)) return "to talk about closure";
   if (/\banswers?\b/i.test(clean)) {
@@ -1184,9 +1185,28 @@ function directObjectToGoalPhrase(value) {
   return `to talk about ${object}`;
 }
 
+function knownGoalPhrase(value) {
+  const phrase = normalizeStandalonePhrase(value);
+  if (/\breconnect\b/i.test(phrase) && !/\b(?:not|avoid|stop)\s+reconnect\b/i.test(phrase)) {
+    return "to reconnect";
+  }
+  if (/\bcatch up\b/i.test(phrase)) return "to catch up sometime soon";
+  return "";
+}
+
 function toGoalInfinitive(value) {
-  const phrase = normalizeStandalonePhrase(value).replace(/^(?:to\s+)+/i, "");
+  const phrase = stripGoalContext(normalizeStandalonePhrase(value)).replace(
+    /^(?:to\s+)+/i,
+    "",
+  );
   return phrase ? `to ${phrase}` : "to catch up sometime soon";
+}
+
+function stripGoalContext(value) {
+  return value
+    .replace(/\s+\b(?:because|since|but)\b.*$/i, "")
+    .replace(/\s+-\s+.*$/g, "")
+    .trim();
 }
 
 function normalizeStandalonePhrase(value) {

@@ -124,12 +124,21 @@ describe("App red-team storage scenarios", () => {
     expect(draft).toContain("Hey Mom");
     expect(draft).toContain("complicated feelings");
     expect(draft).toContain("reconnect");
+    expect(draft.toLowerCase()).not.toContain("adoption");
+    expect(draft.toLowerCase()).not.toContain("gave me up");
     expect(draft.toLowerCase()).not.toContain("fuck");
     expect(document.querySelector(".coach-box").textContent).toContain("softened");
   });
 
   it("keeps fake-user rehearse outputs calm, grammatical, and safe", async () => {
     const cases = [
+      {
+        who: "My Mom",
+        goal: "I want to reconnect she put me up for adoption",
+        draft: "fuck you",
+        expected: ["Hey Mom", "complicated feelings", "I would like to reconnect"],
+        forbidden: ["put me up", "adoption", "to reconnect she"],
+      },
       {
         who: "my ex",
         goal: "I want closure, not a fight",
