@@ -107,6 +107,26 @@ describe("App red-team storage scenarios", () => {
     expect(draft).not.toContain("onerror");
     expect(window.__thresholdPwned).toBeUndefined();
   });
+
+  it("rewrites heated rough drafts instead of preserving them", async () => {
+    await renderApp();
+    await clickButton("Rehearse");
+    await setFieldValue("#who", "My mom");
+    await setFieldValue(
+      "#goal",
+      "She gave me up for adoption and I want to reconnect",
+    );
+    await setFieldValue("#draft", "fuck you");
+    await submitForm(".form-stack");
+
+    const draft = document.querySelector("#draft").value;
+
+    expect(draft).toContain("Hey Mom");
+    expect(draft).toContain("complicated feelings");
+    expect(draft).toContain("reconnect");
+    expect(draft.toLowerCase()).not.toContain("fuck");
+    expect(document.querySelector(".coach-box").textContent).toContain("softened");
+  });
 });
 
 async function renderApp() {

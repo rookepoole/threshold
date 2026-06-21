@@ -8,7 +8,6 @@ import {
 import {
   FIELD_LIMITS,
   cleanMessageText,
-  clampText,
   normalizeContact,
   normalizeStoredContacts,
   normalizeStoredUsage,
@@ -26,6 +25,15 @@ const TABS = [
 ];
 
 const MOMENT_KINDS = ["Reached out", "Showed up", "Said yes", "Stayed a while"];
+
+const HEATED_DRAFT_PATTERNS = [
+  /\bf+u+c+k+\b/i,
+  /\bshit+\b/i,
+  /\basshole\b/i,
+  /\bbitch\b/i,
+  /\bi\s+hate\s+you\b/i,
+  /\bgo\s+to\s+hell\b/i,
+];
 
 const STEP_RAMPS = [
   {
@@ -424,11 +432,14 @@ function Rehearse({ onLogged }) {
       return;
     }
 
+    const roughDraft = isHeatedDraft(draft);
     const nextDraft = buildSuggestedMessage({ who, goal, draft });
     setError("");
     setDraft(nextDraft);
     setCoach(
-      "This keeps the ask clear and low-pressure. Right before you send, breathe once and let it be imperfect.",
+      roughDraft
+        ? "I softened the heat without pretending the situation is easy. Read it once, change anything that does not feel true, then send from your own messages."
+        : "This keeps the ask clear and low-pressure. Right before you send, breathe once and let it be imperfect.",
     );
   }
 
@@ -973,11 +984,18 @@ function useReducedMotion() {
 }
 
 function buildSuggestedMessage({ who, goal, draft }) {
-  const safeDraft = clampText(draft, FIELD_LIMITS.draft);
-  if (safeDraft) return safeDraft;
-
   const name = firstName(cleanMessageText(who, FIELD_LIMITS.who));
   const normalizedGoal = normalizeGoal(cleanMessageText(goal, FIELD_LIMITS.goal));
+  const safeDraft = cleanMessageText(draft, FIELD_LIMITS.draft);
+
+  if (isHeatedDraft(safeDraft)) {
+    return `Hey ${name}, I have a lot of complicated feelings about what happened. I do not want to unload all of that in one message, but I would like to ${normalizedGoal} if you are open to it.`;
+  }
+
+  if (safeDraft) {
+    return `Hey ${name}, ${toSentence(safeDraft)} No pressure, but I would like to ${normalizedGoal}.`;
+  }
+
   return `Hey ${name}, I was thinking about you and wanted to say hi. No pressure, but I would like to ${normalizedGoal}.`;
 }
 
@@ -986,14 +1004,49 @@ function normalizeGoal(goal) {
     .trim()
     .replace(/[.?!]+$/, "")
     .replace(/^(just\s+)?to\s+/i, "")
-    .toLowerCase();
+    .replace(/\s+/g, " ");
 
-  return clean || "catch up sometime soon";
+  const explicitWant = clean.match(
+    /\b(?:i\s+)?(?:want|wanted|would like|would love|hope|hoped|need)\s+to\s+(.+)$/i,
+  );
+
+  if (explicitWant?.[1]) {
+    return explicitWant[1].trim().toLowerCase();
+  }
+
+  if (/\breconnect\b/i.test(clean)) return "reconnect";
+  if (/\bcatch up\b/i.test(clean)) return "catch up sometime soon";
+
+  return clean.toLowerCase() || "catch up sometime soon";
 }
 
 function firstName(value) {
   const withoutParentheses = value.replace(/\(.+\)/, "").trim();
-  return withoutParentheses.split(/\s+/)[0] || "there";
+  const relation = withoutParentheses.match(
+    /^(?:my\s+)?(mom|mother|mama|mum|dad|father|papa|sister|brother|aunt|uncle|grandma|grandmother|grandpa|grandfather)\b/i,
+  );
+
+  if (relation?.[1]) return capitalize(relation[1]);
+
+  const firstWord = withoutParentheses.split(/\s+/)[0];
+  return firstWord ? capitalize(firstWord) : "there";
+}
+
+function toSentence(value) {
+  const clean = value.trim().replace(/[.?!]+$/, "");
+  if (!clean) return "";
+
+  return `${capitalize(clean)}.`;
+}
+
+function capitalize(value) {
+  if (!value) return value;
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function isHeatedDraft(value) {
+  const clean = cleanMessageText(value, FIELD_LIMITS.draft).toLowerCase();
+  return HEATED_DRAFT_PATTERNS.some((pattern) => pattern.test(clean));
 }
 
 function recordTodayUsage(usage) {
