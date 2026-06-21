@@ -4,6 +4,8 @@ Threshold is a local-first React app that helps someone rehearse one hard
 message, choose one real-world step, and log real human contact. Its product
 goal is intentionally unusual: success means people need the app less over time.
 
+[![Install Threshold](https://img.shields.io/badge/Install-Threshold-5b7b6e?style=for-the-badge)](https://rookepoole.github.io/threshold/)
+
 ## Status
 
 This repository now contains the production scaffold for the original
@@ -18,11 +20,9 @@ This repository now contains the production scaffold for the original
 
 ## Install The App
 
-Open the live app:
+Open the live app with the install button above, or go directly to:
 
-```text
-https://rookepoole.github.io/threshold/
-```
+<https://rookepoole.github.io/threshold/>
 
 On Chrome, Edge, and most Android browsers, use Threshold's Install button.
 On iPhone or iPad, open the Share sheet and choose Add to Home Screen.
@@ -67,6 +67,11 @@ The release workflow builds the app, creates a zipped `dist` artifact, and
 publishes a GitHub Release. The Pages workflow deploys `main` to GitHub Pages
 with `BASE_PATH=/threshold/`.
 
+## Contributing
+
+Contributions are welcome. Open an issue or pull request with the change you
+want to make, and run the quality checks before submitting larger updates.
+
 ## Privacy Shape
 
 Threshold stores logs in the browser with `localStorage`. There is no account
@@ -74,4 +79,4 @@ system and no remote data sync in this version.
 
 ## License
 
-Choose a project license before accepting outside contributions.
+Threshold is open source under the MIT License. See [LICENSE](./LICENSE).
