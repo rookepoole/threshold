@@ -40,7 +40,7 @@ describe("release version helpers", () => {
           name: "x".repeat(500),
           body: "b".repeat(10_000),
           html_url: "javascript:alert(1)",
-          published_at: "2026-06-21T00:00:00Z",
+          published_at: "not-a-date",
           assets: [
             {
               name: "asset".repeat(100),
@@ -56,6 +56,7 @@ describe("release version helpers", () => {
 
     expect(release.name).toHaveLength(FIELD_LIMITS.releaseName);
     expect(release.body).toHaveLength(FIELD_LIMITS.releaseBody);
+    expect(release.publishedAt).toBe("");
     expect(release.htmlUrl).toBe("https://github.com/rookepoole/threshold/releases");
     expect(release.assets[0].size).toBe(0);
     expect(release.assets[0].downloadUrl).toBe(

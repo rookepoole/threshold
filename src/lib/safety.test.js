@@ -1,13 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FIELD_LIMITS,
   MAX_CONTACTS,
+  cleanMessageText,
   clampText,
   normalizeContact,
   normalizeHttpsUrl,
+  normalizeIsoDate,
+  normalizeOptionalIsoDate,
   normalizeStoredContacts,
   normalizeStoredUsage,
 } from "./safety";
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("fake-user safety normalization", () => {
   it("falls back when contact storage is not an array", () => {
@@ -35,7 +42,8 @@ describe("fake-user safety normalization", () => {
 
     expect(contacts).toHaveLength(1);
     expect(contacts[0].id).toHaveLength(FIELD_LIMITS.id);
-    expect(contacts[0].who).toHaveLength(FIELD_LIMITS.who);
+    expect(contacts[0].who.length).toBeLessThanOrEqual(FIELD_LIMITS.who);
+    expect(contacts[0].who).not.toContain("<script>");
     expect(contacts[0].kind).toBe("Reached out");
     expect(contacts[0].note).toHaveLength(FIELD_LIMITS.note);
     expect(Number.isFinite(new Date(contacts[0].createdAt).getTime())).toBe(true);
@@ -79,19 +87,49 @@ describe("fake-user safety normalization", () => {
   it("normalizes usage counts to safe chart values", () => {
     const usage = normalizeStoredUsage([
       { date: "bad-date", count: 10 },
+      { date: "2026-99-99", count: 99 },
       { date: "2026-06-20", count: "4" },
+      { date: "2026-06-20", count: "8" },
       { date: "2026-06-21", count: 10_000 },
       { date: "2026-06-22", count: "nope" },
     ]);
 
     expect(usage).toEqual([
-      { date: "2026-06-20", count: 4 },
+      { date: "2026-06-20", count: 8 },
       { date: "2026-06-21", count: 999 },
     ]);
   });
 
   it("removes control characters from user text", () => {
     expect(clampText("hello\u0000\nworld", 20)).toBe("hello  world");
+  });
+
+  it("removes deceptive unicode formatting controls from fake user text", () => {
+    expect(clampText("pay\u202Egpj.exe\u200B", 50)).toBe("pay gpj.exe");
+  });
+
+  it("cleans HTML-looking text from generated app responses", () => {
+    expect(
+      cleanMessageText("<script>alert(1)</script> Maya <img src=x onerror=alert(1)>", 120),
+    ).toBe("Maya");
+    expect(cleanMessageText("<script>alert(1)<\\/script> Maya", 120)).toBe("Maya");
+  });
+
+  it("normalizes invalid, missing, and future contact dates to now", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-21T12:00:00.000Z"));
+
+    expect(normalizeIsoDate(null)).toBe("2026-06-21T12:00:00.000Z");
+    expect(normalizeIsoDate("3026-06-21T12:00:00.000Z")).toBe(
+      "2026-06-21T12:00:00.000Z",
+    );
+  });
+
+  it("drops invalid optional release dates instead of rendering Invalid Date", () => {
+    expect(normalizeOptionalIsoDate("not-a-date")).toBe("");
+    expect(normalizeOptionalIsoDate("2026-06-21T00:00:00Z")).toBe(
+      "2026-06-21T00:00:00.000Z",
+    );
   });
 
   it("only allows https URLs for clickable release targets", () => {

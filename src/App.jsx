@@ -7,6 +7,7 @@ import {
 } from "./lib/releases";
 import {
   FIELD_LIMITS,
+  cleanMessageText,
   clampText,
   normalizeContact,
   normalizeStoredContacts,
@@ -975,8 +976,8 @@ function buildSuggestedMessage({ who, goal, draft }) {
   const safeDraft = clampText(draft, FIELD_LIMITS.draft);
   if (safeDraft) return safeDraft;
 
-  const name = firstName(clampText(who, FIELD_LIMITS.who));
-  const normalizedGoal = normalizeGoal(clampText(goal, FIELD_LIMITS.goal));
+  const name = firstName(cleanMessageText(who, FIELD_LIMITS.who));
+  const normalizedGoal = normalizeGoal(cleanMessageText(goal, FIELD_LIMITS.goal));
   return `Hey ${name}, I was thinking about you and wanted to say hi. No pressure, but I would like to ${normalizedGoal}.`;
 }
 

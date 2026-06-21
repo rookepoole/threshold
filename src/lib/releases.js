@@ -1,4 +1,9 @@
-import { FIELD_LIMITS, clampText, normalizeHttpsUrl } from "./safety";
+import {
+  FIELD_LIMITS,
+  clampText,
+  normalizeHttpsUrl,
+  normalizeOptionalIsoDate,
+} from "./safety";
 
 export const APP_VERSION =
   typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "0.0.0";
@@ -62,7 +67,7 @@ export async function fetchLatestRelease(repository = REPOSITORY) {
       clampText(release.tag_name, FIELD_LIMITS.releaseName),
     body: clampText(release.body, FIELD_LIMITS.releaseBody),
     htmlUrl: normalizeHttpsUrl(release.html_url, fallbackReleaseUrl),
-    publishedAt: release.published_at,
+    publishedAt: normalizeOptionalIsoDate(release.published_at),
     assets: Array.isArray(release.assets)
       ? release.assets.map((asset) => ({
           name: clampText(asset.name, FIELD_LIMITS.releaseName),

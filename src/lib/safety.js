@@ -19,6 +19,16 @@ export function clampText(value, maxLength) {
   return stripControlCharacters(String(value)).trim().slice(0, maxLength);
 }
 
+export function cleanMessageText(value, maxLength) {
+  return clampText(value, maxLength)
+    .replace(/<script\b[^>]*>.*?<\\?\/script>/gi, " ")
+    .replace(/<style\b[^>]*>.*?<\\?\/style>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function normalizeStoredContacts(value, fallbackContacts = []) {
   const source = Array.isArray(value) ? value : fallbackContacts;
   const contacts = [];
@@ -39,43 +49,57 @@ export function normalizeStoredContacts(value, fallbackContacts = []) {
 export function normalizeContact(item, index = 0) {
   if (!item || typeof item !== "object" || Array.isArray(item)) return null;
 
-  const who = clampText(item.who, FIELD_LIMITS.who);
+  const who = cleanMessageText(item.who, FIELD_LIMITS.who);
   if (!who) return null;
 
   return {
     id: clampText(item.id, FIELD_LIMITS.id) || `stored-contact-${index}`,
     who,
-    kind: clampText(item.kind, FIELD_LIMITS.kind) || "Reached out",
+    kind: cleanMessageText(item.kind, FIELD_LIMITS.kind) || "Reached out",
     createdAt: normalizeIsoDate(item.createdAt),
-    note: clampText(item.note, FIELD_LIMITS.note),
+    note: cleanMessageText(item.note, FIELD_LIMITS.note),
   };
 }
 
 export function normalizeStoredUsage(value) {
   if (!Array.isArray(value)) return [];
 
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object" || !DATE_KEY_PATTERN.test(item.date)) {
-        return null;
-      }
+  const byDate = new Map();
 
-      const count = Number.parseInt(item.count, 10);
-      if (!Number.isFinite(count)) return null;
+  for (const item of value) {
+    if (!item || typeof item !== "object" || !isValidDateKey(item.date)) continue;
 
-      return {
-        date: item.date,
-        count: Math.min(Math.max(count, 0), 999),
-      };
-    })
-    .filter(Boolean)
+    const count = Number.parseInt(item.count, 10);
+    if (!Number.isFinite(count)) continue;
+
+    byDate.set(item.date, Math.min(Math.max(count, 0), 999));
+  }
+
+  return Array.from(byDate, ([date, count]) => ({ date, count }))
+    .sort((left, right) => left.date.localeCompare(right.date))
     .slice(-30);
 }
 
 export function normalizeIsoDate(value) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return new Date().toISOString();
+  }
+
+  const date = new Date(value);
+  const now = new Date();
+  if (Number.isFinite(date.getTime()) && date.getTime() <= now.getTime()) {
+    return date.toISOString();
+  }
+
+  return now.toISOString();
+}
+
+export function normalizeOptionalIsoDate(value) {
+  if (typeof value !== "string" && typeof value !== "number") return "";
+
   const date = new Date(value);
   if (Number.isFinite(date.getTime())) return date.toISOString();
-  return new Date().toISOString();
+  return "";
 }
 
 export function normalizeHttpsUrl(value, fallbackUrl) {
@@ -109,9 +133,29 @@ function makeUniqueContactId(contact, seenIds, index) {
   return { ...contact, id: uniqueId };
 }
 
+function isValidDateKey(value) {
+  if (typeof value !== "string") return false;
+  if (!DATE_KEY_PATTERN.test(value)) return false;
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
 function stripControlCharacters(value) {
   return Array.from(value, (character) => {
-    const code = character.charCodeAt(0);
-    return code <= 31 || code === 127 ? " " : character;
+    const code = character.codePointAt(0);
+    return isUnsafeControlCode(code) ? " " : character;
   }).join("");
+}
+
+function isUnsafeControlCode(code) {
+  return (
+    code <= 31 ||
+    code === 127 ||
+    code === 173 ||
+    (code >= 0x200b && code <= 0x200f) ||
+    (code >= 0x202a && code <= 0x202e) ||
+    (code >= 0x2060 && code <= 0x206f) ||
+    code === 0xfeff
+  );
 }
