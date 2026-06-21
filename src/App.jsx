@@ -39,6 +39,16 @@ const UNSAFE_ESCALATION_PATTERNS = [
   /\bmake\s+(?:them|you|him|her)\s+pay\b/i,
 ];
 
+const ACCOUNTABILITY_PATTERNS = [
+  /\b(?:say|tell\s+.+?\s+)?sorry\s+(?:to\s+.+?\s+)?(?:for|about)\s+.+/i,
+  /\bapologi[sz]e\s+(?:to\s+.+?\s+)?(?:for|about)\s+.+/i,
+  /\b(?:want|wanted|would like|would love|need|should)\s+to\s+apologi[sz]e\s+(?:to\s+.+?\s+)?(?:for|about)\s+.+/i,
+  /\bi\s+(?:owe|owed)\s+.+?\s+an?\s+apology\s+(?:for|about)\s+.+/i,
+  /\bmake\s+amends\s+(?:for|about)\s+.+/i,
+  /\btake\s+responsibility\s+(?:for|about)\s+.+/i,
+  /\bown\s+up\s+to\s+.+/i,
+];
+
 const HEATED_DRAFT_PATTERNS = [
   /\bf+u+c+k+\b/i,
   /\bshit+\b/i,
@@ -1019,6 +1029,10 @@ function buildSuggestedMessage({ who, goal, draft }) {
     return `Hey ${name}, I am too escalated to talk well right now. I am going to take some space and come back when I can be respectful.`;
   }
 
+  if (draftTone === "accountability") {
+    return buildAccountabilityMessage({ name, goal, draft: safeDraft });
+  }
+
   if (draftTone === "heated") {
     return `Hey ${name}, I have a lot of complicated feelings about what happened. I do not want to unload all of that in one message, but I would like ${goalPhrase} if you are open to it.`;
   }
@@ -1148,6 +1162,9 @@ function getDraftTone({ draft, goal }) {
   ) {
     return "unsafe";
   }
+  if (hasAccountabilityIntent(cleanGoal) || hasAccountabilityIntent(cleanDraft)) {
+    return "accountability";
+  }
   if (isHeatedDraft(cleanDraft)) return "heated";
   return "steady";
 }
@@ -1159,6 +1176,10 @@ function getCoachText(tone) {
 
   if (tone === "unsafe") {
     return "I removed threats and retaliation from the message. Take space before sending anything, and choose a safer next step if anyone could get hurt.";
+  }
+
+  if (tone === "accountability") {
+    return "I made this an accountability note: name the harm, keep it short, and do not ask them to comfort you.";
   }
 
   if (tone === "heated") {
@@ -1183,6 +1204,87 @@ function directObjectToGoalPhrase(value) {
   }
 
   return `to talk about ${object}`;
+}
+
+function buildAccountabilityMessage({ name, goal, draft }) {
+  const action = extractAccountabilityAction(goal) || extractAccountabilityAction(draft);
+  const apology = accountabilityApologySentence(action);
+
+  return `Hey ${name}, ${apology}. That was not okay. I do not expect you to respond, but I wanted to take responsibility.`;
+}
+
+function extractAccountabilityAction(value) {
+  const clean = cleanMessageText(value, FIELD_LIMITS.goal);
+
+  const patterns = [
+    /\b(?:say|tell\s+.+?\s+)?sorry\s+(?:to\s+.+?\s+)?(?:for|about)\s+(.+)$/i,
+    /\bapologi[sz]e\s+(?:to\s+.+?\s+)?(?:for|about)\s+(.+)$/i,
+    /\b(?:want|wanted|would like|would love|need|should)\s+to\s+apologi[sz]e\s+(?:to\s+.+?\s+)?(?:for|about)\s+(.+)$/i,
+    /\bi\s+(?:owe|owed)\s+.+?\s+an?\s+apology\s+(?:for|about)\s+(.+)$/i,
+    /\bmake\s+amends\s+(?:for|about)\s+(.+)$/i,
+    /\btake\s+responsibility\s+(?:for|about)\s+(.+)$/i,
+    /\bown\s+up\s+to\s+(.+)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = clean.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+
+  return "";
+}
+
+function accountabilityApologySentence(action) {
+  const clause = action ? toAccountabilityClause(action) : "";
+  return clause ? `I am sorry ${clause}` : "I am sorry for what happened";
+}
+
+function toAccountabilityClause(action) {
+  const clean = normalizeActionTarget(stripGoalContext(action));
+  if (!clean) return "";
+
+  const exactActions = [
+    ["hitting you", "I hit you"],
+    ["hit you", "I hit you"],
+    ["hurting you", "I hurt you"],
+    ["hurt you", "I hurt you"],
+    ["yelling at you", "I yelled at you"],
+    ["yelled at you", "I yelled at you"],
+    ["lying to you", "I lied to you"],
+    ["lied to you", "I lied to you"],
+    ["ghosting you", "I ghosted you"],
+    ["ignoring you", "I ignored you"],
+    ["betraying you", "I betrayed you"],
+    ["pushing you", "I pushed you"],
+    ["shoving you", "I shoved you"],
+    ["slapping you", "I slapped you"],
+    ["calling you names", "I called you names"],
+    ["disappearing", "I disappeared"],
+    ["being mean to you", "I was mean to you"],
+    ["being cruel to you", "I was cruel to you"],
+    ["not being there for you", "I was not there for you"],
+  ];
+
+  for (const [source, replacement] of exactActions) {
+    if (clean === source) return replacement;
+  }
+
+  if (/^i\s+/i.test(clean)) return clean.replace(/^i\b/i, "I");
+  if (/^being\s+(.+)$/i.test(clean)) return `I was ${clean.replace(/^being\s+/i, "")}`;
+  if (/^(what\s+i\s+said|what\s+i\s+did)$/i.test(clean)) {
+    return `about ${clean.replace(/\bi\b/i, "I")}`;
+  }
+
+  return `about ${clean}`;
+}
+
+function normalizeActionTarget(value) {
+  return normalizeStandalonePhrase(value)
+    .replace(/\b(?:her|his|their)\s+trust\b/g, "your trust")
+    .replace(/\b(?:her|him|them)\b/g, "you")
+    .replace(/\b(?:she|he|they)\b/g, "you")
+    .replace(/\bmy\s+(?:sister|brother|mom|mother|dad|father|friend|partner)\b/g, "you")
+    .trim();
 }
 
 function knownGoalPhrase(value) {
@@ -1220,6 +1322,10 @@ function normalizeStandalonePhrase(value) {
 
 function matchesAny(value, patterns) {
   return patterns.some((pattern) => pattern.test(value));
+}
+
+function hasAccountabilityIntent(value) {
+  return matchesAny(value, ACCOUNTABILITY_PATTERNS) && !/\bwant\s+an?\s+apology\b/i.test(value);
 }
 
 function recordTodayUsage(usage) {

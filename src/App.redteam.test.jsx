@@ -130,6 +130,87 @@ describe("App red-team storage scenarios", () => {
     expect(document.querySelector(".coach-box").textContent).toContain("softened");
   });
 
+  it("uses accountability language when fake users are trying to apologize", async () => {
+    const cases = [
+      {
+        who: "my sister",
+        goal: "say sorry for hitting her",
+        draft: "fuck you",
+        expected: [
+          "Hey Sister",
+          "I am sorry I hit you",
+          "That was not okay",
+          "take responsibility",
+        ],
+        forbidden: [
+          "complicated feelings",
+          "I would like",
+          "if you are open",
+          "hitting her",
+          "say sorry for hitting her",
+        ],
+      },
+      {
+        who: "my brother",
+        goal: "apologize for yelling at him",
+        draft: "",
+        expected: ["Hey Brother", "I am sorry I yelled at you"],
+        forbidden: ["yelling at him", "if you are open"],
+      },
+      {
+        who: "old friend Alex",
+        goal: "I want to apologize for disappearing",
+        draft: "I miss you",
+        expected: ["Hey Alex", "I am sorry I disappeared"],
+        forbidden: ["I would like", "No pressure"],
+      },
+      {
+        who: "Maya",
+        goal: "I should apologize to her for breaking her trust",
+        draft: "",
+        expected: ["Hey Maya", "I am sorry about breaking your trust"],
+        forbidden: ["breaking her trust", "if you are open"],
+      },
+      {
+        who: "Jordan",
+        goal: "I owe him an apology for ignoring him",
+        draft: "",
+        expected: ["Hey Jordan", "I am sorry I ignored you"],
+        forbidden: ["ignoring him", "I owe him"],
+      },
+      {
+        who: "Sam",
+        goal: "I want an apology",
+        draft: "you owe me",
+        expected: ["Hey Sam", "complicated feelings", "talk about what happened"],
+        forbidden: ["I am sorry", "take responsibility"],
+      },
+    ];
+
+    for (const item of cases) {
+      await renderApp();
+      await clickButton("Rehearse");
+      await setFieldValue("#who", item.who);
+      await setFieldValue("#goal", item.goal);
+      await setFieldValue("#draft", item.draft);
+      await submitForm(".form-stack");
+
+      const draft = document.querySelector("#draft").value;
+
+      for (const expected of item.expected) {
+        expect(draft).toContain(expected);
+      }
+
+      for (const forbidden of item.forbidden) {
+        expect(draft.toLowerCase()).not.toContain(forbidden.toLowerCase());
+      }
+
+      act(() => root.unmount());
+      root = undefined;
+      document.body.innerHTML = '<div id="root"></div>';
+    }
+  });
+
   it("keeps fake-user rehearse outputs calm, grammatical, and safe", async () => {
     const cases = [
       {
