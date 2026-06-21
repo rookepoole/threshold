@@ -52,6 +52,10 @@ The release workflow builds the app, creates a zipped `dist` artifact, and
 publishes a GitHub Release. The Pages workflow deploys `main` to GitHub Pages
 with `BASE_PATH=/threshold/`.
 
+GitHub Pages deployment is manual until the repository is configured in
+Settings -> Pages with GitHub Actions as the source. After that is enabled, run
+the Deploy Pages workflow from the Actions tab.
+
 ## Privacy Shape
 
 Threshold stores logs in the browser with `localStorage`. There is no account
