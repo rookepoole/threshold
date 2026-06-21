@@ -26,7 +26,7 @@ describe("PWA install assets", () => {
   it("keeps the service worker able to handle app fetches", () => {
     const serviceWorker = fs.readFileSync(path.join(publicDir, "sw.js"), "utf8");
 
-    expect(serviceWorker).toContain('const VERSION = "threshold-sw-v3"');
+    expect(serviceWorker).toContain('const VERSION = "threshold-sw-v4"');
     expect(serviceWorker).toContain('addEventListener("fetch"');
     expect(serviceWorker).toContain("networkFirst");
     expect(serviceWorker).toContain("staleWhileRevalidate");
@@ -42,6 +42,16 @@ describe("PWA install assets", () => {
     expect(main).toContain("updatefound");
     expect(main).toContain("controllerchange");
     expect(main).toContain("window.location.reload()");
+  });
+
+  it("reads the package version directly when building app metadata", () => {
+    const viteConfig = fs.readFileSync(
+      path.resolve(testDir, "../../vite.config.js"),
+      "utf8",
+    );
+
+    expect(viteConfig).toContain('require("./package.json")');
+    expect(viteConfig).toContain("packageJson.version");
   });
 
   it("ships a content security policy for the hosted app", () => {

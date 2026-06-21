@@ -1,4 +1,4 @@
-const VERSION = "threshold-sw-v3";
+const VERSION = "threshold-sw-v4";
 const APP_SHELL = ["./", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
